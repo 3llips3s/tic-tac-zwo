@@ -120,7 +120,7 @@ class CreditsScreen extends StatelessWidget {
                   _buildCreditLink(
                     context,
                     'Die Lister der deutschen Nomen basiert auf den ',
-                    'FrequenceLists von The CJKI',
+                    'Frequency Lists von Neri',
                     'https://frequencylists.blogspot.com/2016/01/the-2980-most-frequently-used-german.html',
                   ),
                   const SizedBox(height: 40),

@@ -366,6 +366,13 @@ class OnlineGameService {
     try {
       developer.log(
           '[OnlineGameService] Resetting session $gameSessionId for rematch. New starter: $newStarterId.');
+
+      final currentSession = await _supabase
+          .from('game_sessions')
+          .select('player1_score, player2_score')
+          .eq('id', gameSessionId)
+          .single();
+
       await _supabase.from('game_sessions').update({
         'board': List.filled(9, null),
         'selected_cell_index': null,
@@ -380,6 +387,9 @@ class OnlineGameService {
         'player2_ready': false,
         'online_game_phase': OnlineGamePhase.waiting.string,
         'current_game_started_at': DateTime.now().toIso8601String(),
+        'status': 'in_progress',
+        'player1_score': currentSession['player1_score'] ?? 0,
+        'player2_score': currentSession['player2_score'] ?? 0,
       }).eq('id', gameSessionId);
       developer.log(
           '[OnlineGameService] Session $gameSessionId reset successfully.');

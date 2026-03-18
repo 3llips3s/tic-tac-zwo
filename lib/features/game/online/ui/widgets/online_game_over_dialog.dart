@@ -94,8 +94,8 @@ class _InitialGameOverView extends ConsumerWidget {
       title = 'Unentschieden!';
     }
 
-    final dbPlayer1 = gameState.players[0];
-    final localPlayerIsDbPlayer1 = localPlayerId == dbPlayer1.userId;
+    final dbPlayer1Id = gameState.players[0].userId;
+    final localPlayerIsDbPlayer1 = dbPlayer1Id == localPlayerId;
 
     final localScore = localPlayerIsDbPlayer1
         ? gameState.player1Score
@@ -364,7 +364,7 @@ class _OnlineRematchStatusView extends ConsumerWidget {
       case OnlineRematchStatus.localOffered:
         return Colors.black54;
       case OnlineRematchStatus.remoteOffered:
-        return Colors.yellowAccent;
+        return colorDarkGreen;
       case OnlineRematchStatus.bothAccepted:
         return Colors.lightGreenAccent;
       default:

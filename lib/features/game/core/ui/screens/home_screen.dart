@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../../settings/logic/audio_manager.dart';
 import '../../../../settings/logic/haptics_manager.dart';
 import '../widgets/app_title.dart';
 import '../widgets/mode_menu.dart';
@@ -22,6 +24,15 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _webMusicUnlocked = false;
+
+  void _unlockMusicOnWeb() {
+    if (kIsWeb && !_webMusicUnlocked) {
+      _webMusicUnlocked = true;
+      AudioManager.instance.ensureMusicPlaying();
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -54,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(right: 8, bottom: 16),
             child: IconButton(
               onPressed: () {
+                _unlockMusicOnWeb();
                 HapticsManager.light();
                 widget.onToggleDrawer();
               },

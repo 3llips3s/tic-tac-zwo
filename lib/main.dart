@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -38,10 +39,14 @@ void main() async {
       anonKey: AppConfig.supabaseAnonKey,
     );
 
-    final Directory appDocumentDir = await getApplicationDocumentsDirectory();
-    Hive
-      ..init(appDocumentDir.path)
-      ..registerAdapters();
+    if (kIsWeb) {
+      Hive.init(null);
+    } else {
+      final Directory appDocumentDir = await getApplicationDocumentsDirectory();
+      Hive.init(appDocumentDir.path);
+    }
+
+    Hive.registerAdapters();
 
     await Hive.openBox<GermanNounHive>('german_nouns');
     await Hive.openBox<SavedNounHive>('saved_nouns');
@@ -87,7 +92,9 @@ class _MainAppState extends ConsumerState<MainApp> with WidgetsBindingObserver {
     // init audio and haptics
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AudioManager.instance.initialize(ref).then((_) {
-        AudioManager.instance.playBackgroundMusic(fade: true);
+        if (!kIsWeb) {
+          AudioManager.instance.playBackgroundMusic(fade: true);
+        }
       });
       HapticsManager.initialize(ref);
     });
