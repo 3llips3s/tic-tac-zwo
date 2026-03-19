@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tic_tac_zwo/features/auth/logic/auth_providers.dart';
@@ -6,6 +7,7 @@ import 'package:tic_tac_zwo/features/auth/logic/auth_providers.dart';
 import '../../../../../config/game_config/config.dart';
 import '../../../../../config/game_config/constants.dart';
 import '../../../../navigation/routes/route_names.dart';
+import '../../../../settings/logic/audio_manager.dart';
 import 'neu_button.dart';
 
 class ModeMenu extends ConsumerStatefulWidget {
@@ -37,6 +39,10 @@ class _ModeMenuState extends ConsumerState<ModeMenu> {
   int? _pressedNeuButtonIndex;
 
   Future<void> _handleMenuButtonTap(int index) async {
+    if (kIsWeb) {
+      AudioManager.instance.ensureMusicPlaying();
+    }
+
     if (_pressedNeuButtonIndex == index) return;
 
     setState(() => _pressedNeuButtonIndex = index);

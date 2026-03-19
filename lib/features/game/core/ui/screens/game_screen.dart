@@ -104,22 +104,33 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final gameState =
         ref.read(GameProviders.getStateProvider(ref, widget.gameConfig));
 
+    if (isOnlineMode &&
+        (gameState.opponentConnectionStatus !=
+                OpponentConnectionStatus.connected ||
+            gameState.localConnectionStatus ==
+                LocalConnectionStatus.disconnected)) {
+      return;
+    }
+
     String title;
     String content;
-    VoidCallback onConfirm;
+    Future<void> Function() onConfirm;
 
     if (isOnlineMode && !gameState.isGameOver) {
       final notifier =
           ref.read(onlineGameStateNotifierProvider(widget.gameConfig).notifier);
       title = 'Aufgeben?';
       content = 'Das Spiel wird als Niederlage gewertet.';
-      onConfirm = () => notifier.requestForfeit();
+      onConfirm = () async {
+        Navigator.of(context).pop();
+        await notifier.requestForfeit();
+      };
     } else {
       title = 'Spiel verlassen?';
       content = gameState.isGameOver
           ? 'Zurück zum Home?'
           : 'Dein Spielfortschritt ist dann futsch.';
-      onConfirm = () {
+      onConfirm = () async {
         Navigator.of(context).pop();
         ref.read(navigationTargetProvider.notifier).state =
             NavigationTarget.home;
@@ -661,13 +672,59 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
     switch (status) {
       case OpponentConnectionStatus.reconnecting:
-        title = 'Gegner*in verbindet sich neu...';
-        content = const Padding(
-          padding: EdgeInsets.symmetric(vertical: 56.0),
-          child: Center(
-            child: DualProgressIndicator(),
-          ),
-        );
+        final onlineNotifier = ref
+            .read(onlineGameStateNotifierProvider(widget.gameConfig).notifier);
+
+        if (onlineNotifier.hasShownDisconnectionOptions) {
+          title = 'Gegner*in ist nicht zurückgekehrt';
+          content = Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24.0),
+            child: Text(
+              'Was möchtest du tun?',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+            ),
+          );
+          actions = [
+            GlassMorphicButton(
+              onPressed: () => notifier.goHomeAndCleanupSession(),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                child: const Icon(
+                  Icons.home_rounded,
+                  color: Colors.black87,
+                  size: 30,
+                ),
+              ),
+            ),
+            const SizedBox(width: 24),
+            GlassMorphicButton(
+              onPressed: () => notifier.findNewOpponent(),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                child: const Icon(
+                  Icons.search_rounded,
+                  color: colorYellowAccent,
+                  size: 30,
+                ),
+              ),
+            ),
+          ];
+        } else {
+          title = 'Gegner*in verbindet sich neu...';
+          content = const Padding(
+            padding: EdgeInsets.symmetric(vertical: 56.0),
+            child: Center(
+              child: DualProgressIndicator(),
+            ),
+          );
+          actions = null;
+        }
         break;
       case OpponentConnectionStatus.forfeited:
         final gameState =
@@ -787,6 +844,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
       return const SizedBox.shrink();
     }
 
+    final hasTimeRunOut = remainingSeconds <= 0;
+
     return Container(
       color: colorBlack.withOpacity(0.1),
       child: Center(
@@ -798,7 +857,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             children: [
               const SizedBox(height: 32),
               Text(
-                'Verbindung verloren!',
+                hasTimeRunOut ? 'Spiel aufgegeben' : 'Verbindung verloren!',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 22,
@@ -810,7 +869,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16.0, vertical: 48),
                 child: Text(
-                  'Prüfe deine Internetverbindung.',
+                  hasTimeRunOut
+                      ? 'Du wurdest vom Spiel getrennt'
+                      : 'Prüfe deine Internetverbindung.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 16,
@@ -818,41 +879,45 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       ),
                 ),
               ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Sekunden bis Aufgabe:',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black54,
-                        ),
-                  ),
-                  SizedBox(width: 16),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: colorRed.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: colorRed.withOpacity(0.3), width: 2),
+              if (!hasTimeRunOut) ...[
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Sekunden bis Aufgabe:',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black54,
+                          ),
                     ),
-                    child: Center(
-                      child: Text(
-                        remainingSeconds.toString(),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: colorBlack,
-                            ),
+                    SizedBox(width: 16),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorRed.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: colorRed.withOpacity(0.3), width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          remainingSeconds.toString(),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorBlack,
+                                  ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
             ],
           ),
         ),

@@ -90,6 +90,18 @@ class AudioManager {
     }
   }
 
+  Future<void> ensureMusicPlaying() async {
+    if (!_isInitialized || !_isMusicEnabled || !_musicShouldBePlaying) return;
+
+    if (_musicPlayer.state != PlayerState.playing) {
+      try {
+        await playBackgroundMusic(fade: true);
+      } catch (e) {
+        developer.log('Could not start music on web: $e', name: 'AudioManager');
+      }
+    }
+  }
+
   Future<void> pauseBackgroundMusic(
       {bool fade = false, bool userPaused = true}) async {
     if (!_isInitialized) return;

@@ -1,16 +1,31 @@
-# tic_tac_zwo
+# Tic Tac Zwö
 
-A new Flutter project.
+<p align="center">
+  <img src="screenshots/game_screen.jpg" alt="Game Screen" width="300">
+  <img src="screenshots/home_screen.jpg" alt="Home Screen" width="300">
+  <img src="screenshots/leaderboard_screen.jpg" alt="Leaderboard Screen" width="300">
+</p>
 
-## Getting Started
+## About
+This is a full-stack Flutter application (Android & iOS) designed to help German learners master noun articles (Der, Die, Das) by embedding the learning mechanic into the classic Tic Tac Toe.
 
-This project is a starting point for a Flutter application.
+* **Multiplayer & Solo Modes:** Play online against friends (realtime), pass-and-play, or challenge a solo AI.
+* **AI Difficulty Levels:** The solo AI features Easy, Medium, and Hard modes.
+* **Bonus Word Game:** Includes "Wördle," a German-themed Wordle clone to build vocabulary.
+* **Backend Integration:** Full user authentication, realtime database for online matches, user stats, and online leaderboard.
+* **In-App Feedback:** Integrated a user feedback tool (Wiredash) to collect bug reports and suggestions.
 
-A few resources to get you started if this is your first Flutter project:
+## Tech Stack
+- **Framework**: Flutter (Dart)
+- **State Management**: Riverpod
+- **Backend/Database**: Supabase
+- **Core Packages**: `supabase_flutter`, `flutter_riverpod`, `wiredash`
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Installation (Android)
+1. Download the latest APK from the [Releases](https://github.com/3llips3s/tic-tac-zwo/releases) page.
+2. Open the APK on your Android device.
+3. If prompted, allow "Installation from Unknown Sources".
+4. Install and enjoy :)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## License
+MIT License. See [LICENSE](LICENSE) for details.

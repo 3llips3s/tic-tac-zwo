@@ -42,6 +42,7 @@ class OnlineGameNotifier extends GameNotifier {
   bool _isLocalPlayerTurn = false;
   bool _isInitialGameLoad = true;
   bool _gameOverHandled = false;
+  bool _hasShownDisconnectionOptions = false;
 
   RealtimeChannel? _gameChannel;
 
@@ -100,6 +101,7 @@ class OnlineGameNotifier extends GameNotifier {
 
   Future<void> _handleReconnection() async {
     _cancelLocalDisconnectionTimer();
+    _hasShownDisconnectionOptions = false;
 
     try {
       final latestGameData = await _gameService.getGameSession(gameSessionId);
@@ -240,10 +242,43 @@ class OnlineGameNotifier extends GameNotifier {
             state = state.copyWith();
           }
         } else {
-          _cancelLocalDisconnectionTimer();
+          _handleLocalDisconnectionTimeout();
         }
       },
     );
+  }
+
+  Future<void> _handleLocalDisconnectionTimeout() async {
+    _cancelLocalDisconnectionTimer();
+
+    if (state.isGameOver) return;
+
+    try {
+      await supabase.functions.invoke(
+        'request-forfeit',
+        body: {'gameSessionId': gameSessionId},
+      );
+
+      if (mounted) {
+        state = state.copyWith(
+          isGameOver: true,
+          gameStatus: GameStatus.forfeited,
+        );
+
+        await Future.delayed(Duration(seconds: 2));
+        if (mounted) {
+          ref.read(navigationTargetProvider.notifier).state =
+              NavigationTarget.home;
+        }
+      }
+    } catch (e) {
+      developer.log(
+          '[OnlineGameNotifier] Error forfeiting due to disconnection timeout: $e');
+      if (mounted) {
+        ref.read(navigationTargetProvider.notifier).state =
+            NavigationTarget.home;
+      }
+    }
   }
 
   void _cancelLocalDisconnectionTimer() {
@@ -287,7 +322,9 @@ class OnlineGameNotifier extends GameNotifier {
         _gracePeriodTimer = Timer(const Duration(seconds: 15), () {
           if (mounted &&
               state.opponentConnectionStatus ==
-                  OpponentConnectionStatus.reconnecting) {
+                  OpponentConnectionStatus.reconnecting &&
+              !state.isGameOver) {
+            _hasShownDisconnectionOptions = true;
             _forfeitOpponentDueToTimeout();
           }
         });
@@ -462,7 +499,9 @@ class OnlineGameNotifier extends GameNotifier {
 
     if (gameResult != 'Draw' && gameResult != null) {
       winner = state.players.firstWhere((p) => p.symbolString == gameResult);
-      if (winner.userId == state.players[0].userId) {
+
+      final dbPlayer1Id = state.players[0].userId;
+      if (winner.userId == dbPlayer1Id) {
         p1Score++;
       } else {
         p2Score++;
@@ -756,26 +795,37 @@ class OnlineGameNotifier extends GameNotifier {
     if (!serverIsGameOver && previousState.isGameOver) {
       _gameOverHandled = false;
 
-      final Player previousRoundPlayer1 = previousState.players[0];
-      final Player previousRoundPlayer2 = previousState.players[1];
-      final newStarterId =
-          previousRoundPlayer1.userId == previousState.lastStarterId
-              ? previousRoundPlayer2.userId!
-              : previousRoundPlayer1.userId!;
+      final String? dbPlayer1Id = gameData['player1_id'];
+      final String? dbPlayer2Id = gameData['player2_id'];
 
-      final Player starter = newStarterId == previousRoundPlayer1.userId
-          ? previousRoundPlayer1
-          : previousRoundPlayer2;
-      final Player opponent = newStarterId == previousRoundPlayer1.userId
-          ? previousRoundPlayer2
-          : previousRoundPlayer1;
+      if (dbPlayer1Id == null || dbPlayer2Id == null) {
+        developer.log(
+            '[OnlineGameNotifier] Missing player IDs during rematch reset');
+      }
+
+      final Player dbPlayer1 = state.players.firstWhere(
+        (player) => player.userId == dbPlayer1Id,
+        orElse: () => state.players[0],
+      );
+      final Player dbPlayer2 = state.players.firstWhere(
+        (player) => player.userId == dbPlayer2Id,
+        orElse: () => state.players[1],
+      );
+
+      final newStarterId = gameData['last_starter_id'] ?? state.lastStarterId;
+
+      final Player starter =
+          dbPlayer1.userId == newStarterId ? dbPlayer1 : dbPlayer2;
+      final Player other =
+          dbPlayer1.userId == newStarterId ? dbPlayer2 : dbPlayer1;
 
       final List<Player> newPlayersList = [
-        starter.copyWith(symbol: previousState.players[0].symbol),
-        opponent.copyWith(symbol: previousState.players[1].symbol),
+        starter.copyWith(symbol: PlayerSymbol.X),
+        other.copyWith(symbol: PlayerSymbol.O),
       ];
 
-      final newStartingPlayer = newPlayersList[0];
+      final newStartingPlayer =
+          newPlayersList.firstWhere((player) => player.userId == newStarterId);
 
       state = state.copyWith(
         pointsEarnedPerGame: null,
@@ -787,9 +837,14 @@ class OnlineGameNotifier extends GameNotifier {
         startingPlayer: newStartingPlayer,
       );
 
-      if (_isLocalPlayerTurn) {
-        _startInactivityTimer();
-      }
+      Timer(Duration(milliseconds: 3900), () {
+        if (!mounted) return;
+        _isInitialGameLoad = false;
+
+        if (_isLocalPlayerTurn && !state.isGameOver) {
+          _startInactivityTimer();
+        }
+      });
     }
   }
 
@@ -838,18 +893,39 @@ class OnlineGameNotifier extends GameNotifier {
 
   Future<void> requestForfeit() async {
     if (state.isGameOver) return;
+
     try {
+      if (mounted) {
+        state = state.copyWith(
+          gameStatus: GameStatus.forfeited,
+        );
+      }
+
+      _turnTimer?.cancel();
+      _inactivityTimer?.cancel();
+      _rematchOfferTimer?.cancel();
+      _gracePeriodTimer?.cancel();
+      _localDisconnectionTimer?.cancel();
+
       await supabase.functions.invoke(
         'request-forfeit',
         body: {'gameSessionId': gameSessionId},
       );
 
-      if (!mounted) return;
+      if (mounted) {
+        await Future.delayed(Duration(milliseconds: 300));
 
-      // navigate home after successful forfeit
-      ref.read(navigationTargetProvider.notifier).state = NavigationTarget.home;
+        // navigate home after successful forfeit
+        ref.read(navigationTargetProvider.notifier).state =
+            NavigationTarget.home;
+      }
     } catch (e) {
       developer.log('Error forfeiting game:$e');
+      if (mounted) {
+        // navigate home after successful forfeit
+        ref.read(navigationTargetProvider.notifier).state =
+            NavigationTarget.home;
+      }
     }
   }
 
@@ -910,12 +986,15 @@ class OnlineGameNotifier extends GameNotifier {
 
   bool get isInactivityTimerActive => _isInactivityTimerActive;
 
+  bool get hasShownDisconnectionOptions => _hasShownDisconnectionOptions;
+
   @override
   void dispose() {
     _turnTimer?.cancel();
     _inactivityTimer?.cancel();
     _rematchOfferTimer?.cancel();
     _localDisconnectionTimer?.cancel();
+    _gracePeriodTimer?.cancel();
     _connectivitySubscription?.cancel();
     _gameStateSubscription?.cancel();
     _gameStateSubscription = null;
